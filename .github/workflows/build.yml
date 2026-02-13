@@ -2,41 +2,54 @@ name: Build
 
 on:
   push:
-    branches: [ master ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ master ]
-  workflow_dispatch:
+    branches: [ "master" ]
+  workflow_dispatch:  # Cho phép chạy thủ công
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Quan trọng: cho phép push branch
 
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-      
-      - name: Grant execute permission for gradlew
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Grant execute permission
         run: chmod +x gradlew
-      
-      - name: Build with Gradle
+
+      - name: Build plugin
         run: ./gradlew :app:make
-        
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: plugin
-          path: app/build/outputs/
-          
-      - name: Deploy to builds branch 🚀
+
+      - name: Verify plugins.json exists
+        run: |
+          if [ -f "app/build/outputs/plugins.json" ]; then
+            echo "✅ plugins.json created successfully"
+            cat app/build/outputs/plugins.json
+          else
+            echo "❌ plugins.json not found!"
+            exit 1
+          fi
+
+      - name: Deploy to builds branch
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./app/build/outputs
-          destination_dir: ./
           publish_branch: builds
           keep_files: false
+          force_orphan: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'Build plugin - ${{ github.sha }}'
